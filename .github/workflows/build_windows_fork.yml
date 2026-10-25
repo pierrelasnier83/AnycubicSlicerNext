@@ -103,6 +103,17 @@ jobs:
           key: ${{ needs.deps.outputs.cache-key }}
           fail-on-cache-miss: true
 
+      - name: Alias _s des libs statiques open-plugins (bug de suffixe en Release)
+        shell: bash
+        run: |
+          L=deps/build/AnycubicSlicer_dep/usr/local/lib
+          B=deps/build/AnycubicSlicer_dep/usr/local/bin
+          for n in plugins_manager utility constant plugins_base event_sdk easy_log ACWebView; do
+            if [ -f "$L/$n.lib" ] && [ ! -f "$B/$n.dll" ] && [ ! -f "$L/${n}_s.lib" ]; then
+              cp "$L/$n.lib" "$L/${n}_s.lib" && echo "alias: ${n}_s.lib"
+            fi
+          done
+
       - name: Outils gettext du depot dans le PATH
         shell: pwsh
         run: '"$env:GITHUB_WORKSPACE\tools" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8'
