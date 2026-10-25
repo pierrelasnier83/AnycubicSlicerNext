@@ -136,6 +136,12 @@ jobs:
             exit /b 1
           )
 
+      - name: Copier les DLL d'execution (wxWidgets, open-plugins)
+        shell: bash
+        run: |
+          D=deps/build/AnycubicSlicer_dep/usr/local
+          find "$D/bin" "$D/lib" "$D/lib/vc_x64_dll" -maxdepth 1 -iname "*.dll" -exec cp -n {} build/AnycubicSlicer/ \; 2>/dev/null || true
+
       - name: Lister le résultat
         if: always()
         shell: bash
