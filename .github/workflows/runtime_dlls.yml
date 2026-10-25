@@ -1,0 +1,38 @@
+name: DLL d'execution (deps)
+
+# Recupere les DLL d'execution (wxWidgets, open-plugins...) depuis le cache des deps,
+# sans recompiler. A copier a cote de AnycubicSlicerNext.exe.
+on:
+  workflow_dispatch:
+
+jobs:
+  dlls:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cle de cache
+        id: key
+        shell: bash
+        run: echo "key=win-deps-${{ hashFiles('deps/**') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restaurer les deps
+        uses: actions/cache/restore@v4
+        with:
+          path: deps/build/AnycubicSlicer_dep
+          key: ${{ steps.key.outputs.key }}
+          fail-on-cache-miss: true
+
+      - name: Rassembler les DLL
+        shell: bash
+        run: |
+          D=deps/build/AnycubicSlicer_dep/usr/local
+          mkdir -p runtime_dlls
+          find "$D/bin" "$D/lib" "$D/lib/vc_x64_dll" -maxdepth 1 -iname "*.dll" -exec cp {} runtime_dlls/ \; 2>/dev/null || true
+          ls -la runtime_dlls
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime_dlls_win64
+          path: runtime_dlls
+          if-no-files-found: error
