@@ -1,0 +1,39 @@
+name: Export des deps (build local)
+
+# Publie les dependances deja compilees (cache) sous forme d'archive,
+# pour compiler le slicer sur un PC sans refaire les 50 min de deps.
+on:
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cle de cache
+        id: key
+        shell: bash
+        run: echo "key=win-deps-${{ hashFiles('deps/**') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restaurer les deps
+        uses: actions/cache/restore@v4
+        with:
+          path: deps/build/AnycubicSlicer_dep
+          key: ${{ steps.key.outputs.key }}
+          fail-on-cache-miss: true
+
+      - name: Archiver
+        shell: bash
+        run: |
+          cd deps/build
+          echo "$GITHUB_WORKSPACE" > AnycubicSlicer_dep/BUILD_ROOT.txt
+          tar -czf ../../AnycubicSlicer_dep.tgz AnycubicSlicer_dep
+          ls -la ../../AnycubicSlicer_dep.tgz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AnycubicSlicer_dep_win64
+          path: AnycubicSlicer_dep.tgz
+          compression-level: 0
+          if-no-files-found: error
