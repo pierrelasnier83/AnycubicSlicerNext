@@ -1,0 +1,133 @@
+name: Build Windows (fork)
+
+# Lancement manuel uniquement : onglet Actions > Build Windows (fork) > Run workflow
+on:
+  workflow_dispatch:
+    inputs:
+      rebuild-deps:
+        description: "Reconstruire les dépendances même si le cache existe"
+        type: boolean
+        default: false
+
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEPS_PATH: ${{ github.workspace }}\deps\build\AnycubicSlicer_dep
+
+jobs:
+  deps:
+    name: Dépendances (VS2022)
+    runs-on: windows-latest
+    timeout-minutes: 360
+    outputs:
+      cache-key: ${{ steps.key.outputs.key }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          lfs: true
+
+      - name: Clé de cache
+        id: key
+        shell: bash
+        run: echo "key=win-deps-${{ hashFiles('deps/**') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Restaurer le cache des deps
+        id: cache
+        if: ${{ !inputs.rebuild-deps }}
+        uses: actions/cache/restore@v4
+        with:
+          path: deps/build/AnycubicSlicer_dep
+          key: ${{ steps.key.outputs.key }}
+
+      - uses: microsoft/setup-msbuild@v2
+        if: steps.cache.outputs.cache-hit != 'true'
+
+      - uses: lukka/get-cmake@latest
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          cmakeVersion: "~3.28.0"
+
+      - name: Construire les deps
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          choco install strawberryperl -y --no-progress
+          call build_release_vs2022.bat deps
+
+      - name: Noter le commit open-plugins utilisé
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          d=$(find deps/build -type d -name "dep_OpenPlugins*" -o -type d -name "OpenPlugins*" | head -5)
+          echo "$d"
+          for x in $d; do git -C "$x" log -1 --format="open-plugins: %H %cd" 2>/dev/null || true; done
+
+      - name: Sauver le cache des deps
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: deps/build/AnycubicSlicer_dep
+          key: ${{ steps.key.outputs.key }}
+
+  slicer:
+    name: AnycubicSlicerNext (VS2022)
+    needs: deps
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          lfs: true
+
+      - name: Restaurer les deps
+        uses: actions/cache/restore@v4
+        with:
+          path: deps/build/AnycubicSlicer_dep
+          key: ${{ needs.deps.outputs.cache-key }}
+          fail-on-cache-miss: true
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~3.28.0"
+
+      - name: Construire le slicer
+        shell: cmd
+        env:
+          WindowsSdkDir: 'C:\Program Files (x86)\Windows Kits\10\'
+          WindowsSDKVersion: '10.0.26100.0\'
+        run: call build_release_vs2022.bat slicer
+
+      - name: Lister le résultat
+        if: always()
+        shell: bash
+        run: |
+          ls -la build/AnycubicSlicer 2>/dev/null | head -80 || true
+          ls -la build/src/Release 2>/dev/null | head -80 || true
+
+      - name: Artefact portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnycubicSlicerNext_feat-plugin_win64_portable
+          path: build/AnycubicSlicer
+          if-no-files-found: error
+
+      - name: Artefact PDB (symboles, utile pour Ghidra)
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnycubicSlicerNext_feat-plugin_win64_pdb
+          path: build/src/Release/*.pdb
+          if-no-files-found: warn
+
+      - name: Logs CMake en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmake_logs
+          path: |
+            build/CMakeFiles/*.log
+            build/CMakeCache.txt
+          if-no-files-found: ignore
