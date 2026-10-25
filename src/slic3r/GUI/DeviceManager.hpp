@@ -375,7 +375,8 @@ public:
     bool parse_hms_info(unsigned attr, unsigned code);
     std::string get_long_error_code();
 
-    static wxString get_module_name(ModuleID module_id);
+    // Parentheses : evite l'expansion de la macro get_module_name(...) definie par open-plugins (easy_log/stackstrace.hxx) en Release
+    static wxString (get_module_name)(ModuleID module_id);
     static wxString get_hms_msg_level_str(HMSMessageLevel level);
 };
 
