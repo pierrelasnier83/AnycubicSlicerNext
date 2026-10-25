@@ -55,10 +55,21 @@ jobs:
         run: |
           choco install strawberryperl -y --no-progress
           call build_release_vs2022.bat deps
-          if not exist "deps\build\AnycubicSlicer_dep\usr\local" (
-            echo ERREUR: les deps ne sont pas installees
-            exit /b 1
-          )
+
+      - name: Vérifier que toutes les deps sont installées
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          D=deps/build/AnycubicSlicer_dep/usr/local
+          ok=1
+          for pat in "*wxbase*" "*openplugins*config*.cmake" "TKernel*" "openvdb*" "libcurl*"; do
+            if find "$D" -iname "$pat" | grep -q .; then echo "OK   $pat"; else echo "MANQUE $pat"; ok=0; fi
+          done
+          if [ $ok -ne 1 ]; then
+            echo "Erreurs de build des deps :"
+            grep -rl "error MSB" deps/build --include=*.log 2>/dev/null | head || true
+            exit 1
+          fi
 
       - name: Noter le commit open-plugins utilisé
         if: steps.cache.outputs.cache-hit != 'true'
