@@ -834,7 +834,7 @@ function(AnycubicSlicer_copy_dlls target config postfix output_dlls)
         ${_out_dir}/TKXDESTEP.dll
         ${_out_dir}/TKXSBase.dll
 
-        ${_out_dir}/freetype{POSTFIX}.dll
+        ${_out_dir}/freetype${POSTFIX}.dll
 
         PARENT_SCOPE
     )
