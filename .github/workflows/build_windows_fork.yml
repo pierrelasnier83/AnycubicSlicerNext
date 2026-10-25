@@ -103,6 +103,10 @@ jobs:
           key: ${{ needs.deps.outputs.cache-key }}
           fail-on-cache-miss: true
 
+      - name: Outils gettext du depot dans le PATH
+        shell: pwsh
+        run: '"$env:GITHUB_WORKSPACE\tools" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8'
+
       - uses: microsoft/setup-msbuild@v2
 
       - uses: lukka/get-cmake@latest
