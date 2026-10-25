@@ -24,6 +24,8 @@
 #include <cstdlib>
 #include <regex>
 #include <thread>
+#include <atomic>
+#include <chrono>
 #include <string_view>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string.hpp>
@@ -2501,7 +2503,21 @@ bool GUI_App::on_init_inner()
         
         // 执行UpdatePluginConfig操作
         if (m_anycubic_context) {
-            m_anycubic_context->UpdatePluginConfig();
+            // Fork : UpdatePluginConfig (WMI + requete reseau sans delai max) pouvait bloquer le demarrage.
+            // On l'execute dans un thread separe, plafonne a 15 s, puis on continue quoi qu'il arrive.
+            auto ctx  = m_anycubic_context;
+            auto done = std::make_shared<std::atomic<bool>>(false);
+            std::thread([ctx, done]() {
+                try { ctx->UpdatePluginConfig(); } catch (...) {}
+                done->store(true);
+            }).detach();
+            const auto t0 = std::chrono::steady_clock::now();
+            while (!done->load() && std::chrono::steady_clock::now() - t0 < std::chrono::seconds(15)) {
+                wxYield();
+                wxMilliSleep(50);
+            }
+            if (!done->load())
+                BOOST_LOG_TRIVIAL(warning) << "UpdatePluginConfig: delai de 15 s depasse, demarrage poursuivi";
         }
         
         // 更新完成后显示完成信息
